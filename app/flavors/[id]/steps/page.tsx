@@ -14,10 +14,12 @@ import { CSS } from '@dnd-kit/utilities'
 import { createClient } from '@/lib/supabase/client'
 import Navbar from '@/components/Navbar'
 
-type Step = { id: string; step_order: number; prompt: string; description: string }
+type Step = { id: string; step_number: number; instruction: string; description?: string }
 
-function SortableStep({ step, onEdit, onDelete }: {
+function SortableStep({ step, index, total, onEdit, onDelete }: {
   step: Step
+  index: number
+  total: number
   onEdit: (s: Step) => void
   onDelete: (id: string) => void
 }) {
@@ -28,24 +30,63 @@ function SortableStep({ step, onEdit, onDelete }: {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
+      className={`relative flex gap-4 ${isDragging ? 'z-50' : ''}`}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 px-1 select-none text-xl"
-        title="Drag to reorder"
-      >⠿</button>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-bold text-blue-500">STEP {step.step_order}</span>
-          {step.description && <span className="text-sm text-gray-500 truncate">{step.description}</span>}
-        </div>
-        <p className="text-sm whitespace-pre-wrap line-clamp-3 text-gray-700 dark:text-gray-300">{step.prompt}</p>
+      {/* Connector line */}
+      {index < total - 1 && (
+        <div className="absolute left-[22px] top-[52px] w-0.5 h-[calc(100%+16px)] bg-gray-200 dark:bg-gray-700 z-0" />
+      )}
+
+      {/* Step number bubble */}
+      <div className="relative z-10 shrink-0 w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shadow-sm mt-1">
+        {step.step_number}
       </div>
-      <div className="flex flex-col gap-1 shrink-0">
-        <button onClick={() => onEdit(step)} className="px-2 py-1 text-xs rounded bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200">Edit</button>
-        <button onClick={() => onDelete(step.id)} className="px-2 py-1 text-xs rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 hover:bg-red-200">Delete</button>
+
+      {/* Card */}
+      <div className={`flex-1 mb-4 bg-white dark:bg-gray-900 border rounded-2xl p-4 shadow-sm transition-all ${isDragging ? 'opacity-60 shadow-xl border-blue-400' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            {step.description && (
+              <p className="text-xs font-semibold text-blue-500 uppercase tracking-wide mb-1">{step.description}</p>
+            )}
+            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{step.instruction}</p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Drag handle */}
+            <button
+              {...attributes}
+              {...listeners}
+              className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-grab active:cursor-grabbing transition-colors"
+              title="Drag to reorder"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
+                <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
+                <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => onEdit(step)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-950 transition-colors"
+              title="Edit step"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => onDelete(step.id)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+              title="Delete step"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -57,9 +98,10 @@ export default function StepsPage() {
   const [steps, setSteps] = useState<Step[]>([])
   const [editing, setEditing] = useState<Step | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [prompt, setPrompt] = useState('')
+  const [instruction, setInstruction] = useState('')
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
   const sensors = useSensors(
@@ -70,10 +112,11 @@ export default function StepsPage() {
   const loadSteps = useCallback(async () => {
     const [{ data: flavor }, { data: stepsData }] = await Promise.all([
       supabase.from('humor_flavors').select('name').eq('id', id).single(),
-      supabase.from('humor_flavor_steps').select('*').eq('flavor_id', id).order('step_order')
+      supabase.from('humor_flavor_steps').select('*').eq('humor_flavor_id', id).order('step_number')
     ])
     if (flavor) setFlavorName(flavor.name)
     if (stepsData) setSteps(stepsData)
+    setLoading(false)
   }, [id])
 
   useEffect(() => { loadSteps() }, [loadSteps])
@@ -83,29 +126,31 @@ export default function StepsPage() {
     if (!over || active.id === over.id) return
     const oldIndex = steps.findIndex(s => s.id === active.id)
     const newIndex = steps.findIndex(s => s.id === over.id)
-    const reordered = arrayMove(steps, oldIndex, newIndex).map((s, i) => ({ ...s, step_order: i + 1 }))
+    const reordered = arrayMove(steps, oldIndex, newIndex).map((s, i) => ({ ...s, step_number: i + 1 }))
     setSteps(reordered)
     await Promise.all(reordered.map(s =>
-      supabase.from('humor_flavor_steps').update({ step_order: s.step_order }).eq('id', s.id)
+      supabase.from('humor_flavor_steps').update({ step_number: s.step_number }).eq('id', s.id)
     ))
   }
 
   function openNew() {
-    setEditing(null); setPrompt(''); setDescription(''); setShowForm(true)
+    setEditing(null); setInstruction(''); setDescription(''); setShowForm(true)
+    setTimeout(() => document.getElementById('instruction-input')?.focus(), 50)
   }
 
   function openEdit(step: Step) {
-    setEditing(step); setPrompt(step.prompt); setDescription(step.description || ''); setShowForm(true)
+    setEditing(step); setInstruction(step.instruction); setDescription(step.description || ''); setShowForm(true)
+    setTimeout(() => document.getElementById('instruction-input')?.focus(), 50)
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     if (editing) {
-      await supabase.from('humor_flavor_steps').update({ prompt, description }).eq('id', editing.id)
+      await supabase.from('humor_flavor_steps').update({ instruction, description }).eq('id', editing.id)
     } else {
       await supabase.from('humor_flavor_steps').insert({
-        flavor_id: id, prompt, description, step_order: steps.length + 1
+        humor_flavor_id: id, instruction, description, step_number: steps.length + 1
       })
     }
     setShowForm(false)
@@ -116,57 +161,75 @@ export default function StepsPage() {
   async function handleDelete(stepId: string) {
     if (!confirm('Delete this step?')) return
     await supabase.from('humor_flavor_steps').delete().eq('id', stepId)
-    const remaining = steps.filter(s => s.id !== stepId).map((s, i) => ({ ...s, step_order: i + 1 }))
+    const remaining = steps.filter(s => s.id !== stepId).map((s, i) => ({ ...s, step_number: i + 1 }))
     setSteps(remaining)
     await Promise.all(remaining.map(s =>
-      supabase.from('humor_flavor_steps').update({ step_order: s.step_order }).eq('id', s.id)
+      supabase.from('humor_flavor_steps').update({ step_number: s.step_number }).eq('id', s.id)
     ))
   }
 
   return (
     <>
       <Navbar />
-      <main className="max-w-2xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/flavors" className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">← Back</Link>
-            <h1 className="text-xl font-bold">{flavorName} — Steps</h1>
+      <main className="max-w-2xl mx-auto px-6 py-8">
+        {/* Header */}
+        <Link href="/flavors" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mb-6">
+          ← Back to Flavors
+        </Link>
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">{flavorName || '…'}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {steps.length} step{steps.length !== 1 ? 's' : ''} · Drag to reorder
+            </p>
           </div>
           <div className="flex gap-2">
-            <Link href={`/flavors/${id}/test`} className="px-3 py-1.5 text-sm rounded-lg bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 hover:bg-green-200">Test</Link>
-            <button onClick={openNew} className="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium">+ Add Step</button>
+            <Link href={`/flavors/${id}/captions`} className="px-3 py-1.5 text-sm rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 hover:bg-purple-200 font-medium transition-colors">
+              💬 Captions
+            </Link>
+            <Link href={`/flavors/${id}/test`} className="px-3 py-1.5 text-sm rounded-xl bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 hover:bg-green-200 font-medium transition-colors">
+              🧪 Test
+            </Link>
           </div>
         </div>
 
+        {/* Step form */}
         {showForm && (
-          <div className="mb-6 p-4 rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950">
-            <h2 className="font-semibold mb-3">{editing ? 'Edit Step' : 'New Step'}</h2>
+          <div className="mb-6 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-2xl p-5">
+            <h2 className="font-semibold mb-4 text-blue-900 dark:text-blue-100">
+              {editing ? `Edit Step ${editing.step_number}` : `New Step ${steps.length + 1}`}
+            </h2>
             <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Description (optional)</label>
+                <label className="block text-sm font-semibold mb-1.5 text-blue-900 dark:text-blue-200">
+                  Label <span className="font-normal text-blue-500">(optional)</span>
+                </label>
                 <input
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  placeholder="e.g. Describe the image"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. Describe the image, Add humor, Generate captions"
+                  className="w-full px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Prompt</label>
+                <label className="block text-sm font-semibold mb-1.5 text-blue-900 dark:text-blue-200">
+                  Instruction <span className="text-red-500">*</span>
+                </label>
                 <textarea
-                  value={prompt}
-                  onChange={e => setPrompt(e.target.value)}
+                  id="instruction-input"
+                  value={instruction}
+                  onChange={e => setInstruction(e.target.value)}
                   required
-                  rows={4}
-                  placeholder="Write the prompt for this step…"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={5}
+                  placeholder="Write the prompt instruction for this step. You can reference the previous step's output."
+                  className="w-full px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
-              <div className="flex gap-2">
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
-                  {saving ? 'Saving…' : 'Save'}
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 transition-colors">
+                  {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Step'}
                 </button>
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl text-sm border border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors">
                   Cancel
                 </button>
               </div>
@@ -174,19 +237,41 @@ export default function StepsPage() {
           </div>
         )}
 
-        {!steps.length && !showForm && (
-          <p className="text-gray-500 text-center py-16">No steps yet. Add one!</p>
+        {/* Steps pipeline */}
+        {loading && <div className="py-12 text-center text-gray-400 text-sm">Loading steps…</div>}
+
+        {!loading && !steps.length && !showForm && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
+            <div className="text-4xl">🔗</div>
+            <p className="text-gray-500 font-medium">No steps yet</p>
+            <p className="text-gray-400 text-sm text-center max-w-xs">Add steps to build your prompt chain. Each step passes its output to the next.</p>
+            <button onClick={openNew} className="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium">
+              Add First Step
+            </button>
+          </div>
         )}
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-3">
-              {steps.map(step => (
-                <SortableStep key={step.id} step={step} onEdit={openEdit} onDelete={handleDelete} />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+        {!loading && steps.length > 0 && (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              <div className="relative">
+                {steps.map((step, i) => (
+                  <SortableStep key={step.id} step={step} index={i} total={steps.length} onEdit={openEdit} onDelete={handleDelete} />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
+
+        {/* Add step button */}
+        {!loading && !showForm && (
+          <button
+            onClick={openNew}
+            className="mt-2 w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950 transition-all font-medium"
+          >
+            + Add Step
+          </button>
+        )}
       </main>
     </>
   )
