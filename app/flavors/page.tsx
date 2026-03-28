@@ -42,6 +42,10 @@ export default async function FlavorsPage() {
     countMap[s.humor_flavor_id] = (countMap[s.humor_flavor_id] || 0) + 1
   })
 
+  // Only show flavors that have at least one step (API requires steps)
+  const flavorsWithSteps = flavors?.filter(f => (countMap[f.id] ?? 0) > 0)
+  const flavorsWithoutSteps = flavors?.filter(f => (countMap[f.id] ?? 0) === 0)
+
   return (
     <>
       <Navbar />
@@ -61,10 +65,10 @@ export default async function FlavorsPage() {
           </Link>
         </div>
 
-        {!flavors?.length && (
+        {!flavorsWithSteps?.length && (
           <div className="flex flex-col items-center justify-center py-24 gap-4 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
             <div className="text-5xl">🎭</div>
-            <p className="text-gray-500 font-medium">No humor flavors yet</p>
+            <p className="text-gray-500 font-medium">No flavors with steps yet</p>
             <Link href="/flavors/new" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
               Create your first flavor
             </Link>
@@ -72,7 +76,7 @@ export default async function FlavorsPage() {
         )}
 
         <div className="grid gap-4">
-          {flavors?.map(f => (
+          {flavorsWithSteps?.map(f => (
             <div key={f.id} className="group bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -100,6 +104,34 @@ export default async function FlavorsPage() {
             </div>
           ))}
         </div>
+
+        {!!flavorsWithoutSteps?.length && (
+          <details className="mt-6">
+            <summary className="text-sm text-gray-400 cursor-pointer hover:text-gray-600 select-none">
+              {flavorsWithoutSteps.length} flavor{flavorsWithoutSteps.length !== 1 ? 's' : ''} without steps (cannot be tested)
+            </summary>
+            <div className="grid gap-3 mt-3">
+              {flavorsWithoutSteps.map(f => (
+                <div key={f.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 opacity-60">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-semibold truncate">{f.slug}</h2>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-400">0 steps</span>
+                      </div>
+                      {f.description && <p className="text-sm text-gray-400 mt-0.5 line-clamp-1">{f.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Link href={`/flavors/${f.id}/steps`} className="px-3 py-1.5 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 font-medium transition-colors">⚙️ Add Steps</Link>
+                      <Link href={`/flavors/${f.id}`} className="px-3 py-1.5 text-sm rounded-lg bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 font-medium transition-colors">✏️ Edit</Link>
+                      <DeleteFlavorButton id={f.id} name={f.slug} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
       </main>
     </>
   )

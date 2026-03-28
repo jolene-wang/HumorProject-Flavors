@@ -112,10 +112,11 @@ export default function TestFlavorPage() {
 
       // Step 4: Generate captions
       setStepStatus(3, 'loading')
+      const captionBody = { imageId, humorFlavorId: parseInt(id, 10) }
       const captionRes = await fetch(`${API}/pipeline/generate-captions`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageId, humorFlavorId: Number(id) }),
+        body: JSON.stringify(captionBody),
       })
       if (!captionRes.ok) throw new Error(`Caption generation failed: ${await captionRes.text()}`)
       const data = await captionRes.json()
@@ -196,7 +197,11 @@ export default function TestFlavorPage() {
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic" onChange={handleFileChange} className="hidden" />
           </div>
 
-          {/* Generate button */}
+          {stepCount === 0 && (
+            <div className="p-4 rounded-xl bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300 text-sm">
+              ⚠️ This flavor has no steps. <Link href={`/flavors/${id}/steps`} className="underline font-medium">Add steps first</Link> before testing.
+            </div>
+          )}
           <button
             onClick={handleGenerate}
             disabled={!imageFile || loading || !token}
