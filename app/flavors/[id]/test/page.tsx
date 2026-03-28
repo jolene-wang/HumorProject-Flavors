@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import Navbar from '@/components/Navbar'
 
+type StepStatus = 'idle' | 'loading' | 'done' | 'error'
+
 export default function TestFlavorPage() {
   const { id } = useParams<{ id: string }>()
   const [flavorName, setFlavorName] = useState('')
@@ -13,12 +15,18 @@ export default function TestFlavorPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [captions, setCaptions] = useState<string[]>([])
-  const [rawResponse, setRawResponse] = useState<string>('')
   const [error, setError] = useState('')
   const [token, setToken] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [steps, setSteps] = useState<{ label: string; status: StepStatus }[]>([
+    { label: 'Generating upload URL', status: 'idle' },
+    { label: 'Uploading image', status: 'idle' },
+    { label: 'Registering image', status: 'idle' },
+    { label: 'Generating captions', status: 'idle' },
+  ])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
+  const API = 'https://api.almostcrackd.ai'
 
   const load = useCallback(async () => {
     const [{ data: flavor }, { data: stepsData }, { data: { session } }] = await Promise.all([
@@ -33,13 +41,21 @@ export default function TestFlavorPage() {
 
   useEffect(() => { load() }, [load])
 
+  function resetSteps() {
+    setSteps(s => s.map(step => ({ ...step, status: 'idle' })))
+  }
+
+  function setStepStatus(index: number, status: StepStatus) {
+    setSteps(s => s.map((step, i) => i === index ? { ...step, status } : step))
+  }
+
   function handleFile(file: File) {
     if (!file.type.startsWith('image/')) return
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
     setCaptions([])
-    setRawResponse('')
     setError('')
+    resetSteps()
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -59,46 +75,78 @@ export default function TestFlavorPage() {
     setLoading(true)
     setError('')
     setCaptions([])
-    setRawResponse('')
+    resetSteps()
+
     try {
-      const formData = new FormData()
-      formData.append('image', imageFile)
-      formData.append('humor_flavor_id', id)
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/captions`, {
+      // Step 1: Get presigned URL
+      setStepStatus(0, 'loading')
+      const presignRes = await fetch(`${API}/pipeline/generate-presigned-url`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentType: imageFile.type }),
       })
+      if (!presignRes.ok) throw new Error(`Presign failed: ${await presignRes.text()}`)
+      const { presignedUrl, cdnUrl } = await presignRes.json()
+      setStepStatus(0, 'done')
 
-      const text = await res.text()
-      if (!res.ok) throw new Error(`API error ${res.status}: ${text}`)
+      // Step 2: Upload image to S3
+      setStepStatus(1, 'loading')
+      const uploadRes = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': imageFile.type },
+        body: imageFile,
+      })
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`)
+      setStepStatus(1, 'done')
 
-      let data: unknown
-      try { data = JSON.parse(text) } catch { data = text }
-      setRawResponse(typeof data === 'string' ? data : JSON.stringify(data, null, 2))
+      // Step 3: Register image
+      setStepStatus(2, 'loading')
+      const registerRes = await fetch(`${API}/pipeline/upload-image-from-url`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: cdnUrl, isCommonUse: false }),
+      })
+      if (!registerRes.ok) throw new Error(`Register failed: ${await registerRes.text()}`)
+      const { imageId } = await registerRes.json()
+      setStepStatus(2, 'done')
 
-      if (Array.isArray(data)) {
-        setCaptions(data.map((c: unknown) =>
-          typeof c === 'string' ? c : (c as Record<string, string>).caption ?? JSON.stringify(c)
-        ))
-      } else if (data && typeof data === 'object') {
-        const obj = data as Record<string, unknown>
-        if (Array.isArray(obj.captions)) {
-          setCaptions(obj.captions.map((c: unknown) =>
-            typeof c === 'string' ? c : (c as Record<string, string>).caption ?? JSON.stringify(c)
-          ))
-        } else {
-          setCaptions([JSON.stringify(data, null, 2)])
-        }
-      } else {
-        setCaptions([String(data)])
-      }
+      // Step 4: Generate captions
+      setStepStatus(3, 'loading')
+      const captionRes = await fetch(`${API}/pipeline/generate-captions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageId, humorFlavorId: Number(id) }),
+      })
+      if (!captionRes.ok) throw new Error(`Caption generation failed: ${await captionRes.text()}`)
+      const data = await captionRes.json()
+      setStepStatus(3, 'done')
+
+      // Normalize response
+      const list: string[] = Array.isArray(data)
+        ? data.map((c: unknown) => typeof c === 'string' ? c : (c as Record<string, string>).content ?? (c as Record<string, string>).caption ?? JSON.stringify(c))
+        : data?.captions
+          ? data.captions.map((c: unknown) => typeof c === 'string' ? c : (c as Record<string, string>).content ?? JSON.stringify(c))
+          : [JSON.stringify(data)]
+      setCaptions(list)
+
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unknown error')
+      setSteps(s => s.map(step => step.status === 'loading' ? { ...step, status: 'error' } : step))
     } finally {
       setLoading(false)
     }
+  }
+
+  const statusIcon = (status: StepStatus) => {
+    if (status === 'idle') return <span className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 inline-block" />
+    if (status === 'loading') return (
+      <svg className="animate-spin w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+      </svg>
+    )
+    if (status === 'done') return <span className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">✓</span>
+    return <span className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center text-white text-xs">✕</span>
   }
 
   return (
@@ -109,12 +157,9 @@ export default function TestFlavorPage() {
           ← Back to Steps
         </Link>
 
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Test: {flavorName || '…'}</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Upload an image to run it through your {stepCount}-step prompt chain
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Upload an image to run it through your {stepCount}-step prompt chain</p>
         </div>
 
         <div className="space-y-5">
@@ -125,27 +170,18 @@ export default function TestFlavorPage() {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             className={`relative cursor-pointer rounded-2xl border-2 border-dashed transition-all ${
-              dragOver
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                : imagePreview
-                  ? 'border-gray-200 dark:border-gray-700'
-                  : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-900'
+              dragOver ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+              : imagePreview ? 'border-gray-200 dark:border-gray-700'
+              : 'border-gray-300 dark:border-gray-700 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-900'
             }`}
           >
             {imagePreview ? (
               <div className="relative">
                 <img src={imagePreview} alt="Preview" className="w-full max-h-72 object-contain rounded-2xl" />
-                <div className="absolute inset-0 bg-black/0 hover:bg-black/20 rounded-2xl transition-all flex items-center justify-center">
-                  <span className="opacity-0 hover:opacity-100 text-white text-sm font-medium bg-black/50 px-3 py-1.5 rounded-lg">
-                    Click to change
-                  </span>
-                </div>
                 <button
-                  onClick={e => { e.stopPropagation(); setImageFile(null); setImagePreview(null); setCaptions([]); setError('') }}
-                  className="absolute top-2 right-2 w-7 h-7 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs transition-colors"
-                >
-                  ✕
-                </button>
+                  onClick={e => { e.stopPropagation(); setImageFile(null); setImagePreview(null); setCaptions([]); setError(''); resetSteps() }}
+                  className="absolute top-2 right-2 w-7 h-7 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center text-xs"
+                >✕</button>
               </div>
             ) : (
               <div className="py-12 flex flex-col items-center gap-3 text-gray-400">
@@ -154,10 +190,10 @@ export default function TestFlavorPage() {
                   <p className="font-medium text-gray-600 dark:text-gray-300">Drop an image here</p>
                   <p className="text-sm mt-0.5">or click to browse</p>
                 </div>
-                <p className="text-xs text-gray-400">PNG, JPG, GIF, WebP</p>
+                <p className="text-xs">JPEG, PNG, WebP, GIF, HEIC</p>
               </div>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic" onChange={handleFileChange} className="hidden" />
           </div>
 
           {/* Generate button */}
@@ -166,18 +202,25 @@ export default function TestFlavorPage() {
             disabled={!imageFile || loading || !token}
             className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-xl font-semibold text-sm transition-colors disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? (
-              <>
-                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                Running {stepCount} steps…
-              </>
-            ) : (
-              '🚀 Generate Captions'
-            )}
+            {loading ? 'Running pipeline…' : '🚀 Generate Captions'}
           </button>
+
+          {/* Pipeline progress */}
+          {steps.some(s => s.status !== 'idle') && (
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Pipeline Progress</p>
+              <div className="space-y-2.5">
+                {steps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    {statusIcon(step.status)}
+                    <span className={`text-sm ${step.status === 'loading' ? 'text-blue-600 dark:text-blue-400 font-medium' : step.status === 'done' ? 'text-green-600 dark:text-green-400' : step.status === 'error' ? 'text-red-500' : 'text-gray-400'}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Error */}
           {error && (
@@ -210,14 +253,6 @@ export default function TestFlavorPage() {
                 </Link>
               </div>
             </div>
-          )}
-
-          {/* Raw response */}
-          {rawResponse && (
-            <details>
-              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">Raw API response</summary>
-              <pre className="mt-2 p-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs overflow-auto max-h-64">{rawResponse}</pre>
-            </details>
           )}
         </div>
       </main>
