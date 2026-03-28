@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar'
 
 export default function EditFlavorPage() {
   const { id } = useParams<{ id: string }>()
-  const [name, setName] = useState('')
+  const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -16,9 +16,9 @@ export default function EditFlavorPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.from('humor_flavors').select('name, description').eq('id', id).single()
+    supabase.from('humor_flavors').select('slug, description').eq('id', id).single()
       .then(({ data }) => {
-        if (data) { setName(data.name); setDescription(data.description || '') }
+        if (data) { setSlug(data.slug); setDescription(data.description || '') }
         setFetching(false)
       })
   }, [id])
@@ -27,7 +27,7 @@ export default function EditFlavorPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.from('humor_flavors').update({ name, description }).eq('id', id)
+    const { error } = await supabase.from('humor_flavors').update({ slug, description }).eq('id', id)
     if (error) { setError(error.message); setLoading(false); return }
     router.push('/flavors')
     router.refresh()
@@ -50,8 +50,8 @@ export default function EditFlavorPage() {
               <div>
                 <label className="block text-sm font-semibold mb-1.5">Name <span className="text-red-500">*</span></label>
                 <input
-                  value={name}
-                  onChange={e => setName(e.target.value)}
+                  value={slug}
+                  onChange={e => setSlug(e.target.value)}
                   required
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
@@ -66,16 +66,10 @@ export default function EditFlavorPage() {
                 />
               </div>
               {error && (
-                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">
-                  {error}
-                </div>
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm">{error}</div>
               )}
               <div className="flex gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm disabled:opacity-50 transition-colors"
-                >
+                <button type="submit" disabled={loading} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm disabled:opacity-50 transition-colors">
                   {loading ? 'Saving…' : 'Save Changes'}
                 </button>
                 <Link href="/flavors" className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">

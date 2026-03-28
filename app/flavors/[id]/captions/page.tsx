@@ -23,14 +23,14 @@ export default function FlavorCaptionsPage() {
 
   const load = useCallback(async () => {
     const [{ data: flavor }, { data: captionsData }] = await Promise.all([
-      supabase.from('humor_flavors').select('name').eq('id', id).single(),
+      supabase.from('humor_flavors').select('slug').eq('id', id).single(),
       supabase
         .from('captions')
         .select('id, content, like_count, is_public, is_featured, created_datetime_utc')
         .eq('humor_flavor_id', id)
         .order('created_datetime_utc', { ascending: false })
     ])
-    if (flavor) setFlavorName(flavor.name)
+    if (flavor) setFlavorName(flavor.slug)
     setCaptions(captionsData || [])
     setLoading(false)
   }, [id])

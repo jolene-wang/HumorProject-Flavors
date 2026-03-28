@@ -22,11 +22,11 @@ export default function TestFlavorPage() {
 
   const load = useCallback(async () => {
     const [{ data: flavor }, { data: stepsData }, { data: { session } }] = await Promise.all([
-      supabase.from('humor_flavors').select('name').eq('id', id).single(),
+      supabase.from('humor_flavors').select('slug').eq('id', id).single(),
       supabase.from('humor_flavor_steps').select('id').eq('humor_flavor_id', id),
       supabase.auth.getSession()
     ])
-    if (flavor) setFlavorName(flavor.name)
+    if (flavor) setFlavorName(flavor.slug)
     if (stepsData) setStepCount(stepsData.length)
     if (session) setToken(session.access_token)
   }, [id])
