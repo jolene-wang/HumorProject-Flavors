@@ -227,13 +227,14 @@ export default function StepsPage() {
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1.5 text-blue-900 dark:text-blue-200">User Prompt <span className="text-red-500">*</span></label>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mb-1.5">Reference prior steps with <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">${'{step1Output}'}</code>, <code className="font-mono bg-blue-100 dark:bg-blue-900 px-1 rounded">${'{step2Output}'}</code>, etc.</p>
                 <textarea
                   value={userPrompt}
                   onChange={e => setUserPrompt(e.target.value)}
                   required
                   rows={5}
-                  placeholder="Describe the image in detail. Use $&#123;previousOutput&#125; to reference the previous step."
-                  className="w-full px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  placeholder="Describe the image in detail. Use ${step1Output}, ${step2Output}, etc. to reference previous steps."
+                  className="w-full px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
                 />
               </div>
               <div className="flex gap-2 pt-1">
