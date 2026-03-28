@@ -157,7 +157,14 @@ export default function StepsPage() {
       await supabase.from('humor_flavor_steps').update(payload).eq('id', editing.id)
     } else {
       await supabase.from('humor_flavor_steps').insert({
-        humor_flavor_id: id, order_by: steps.length + 1, ...payload
+        humor_flavor_id: id,
+        order_by: steps.length + 1,
+        llm_input_type_id: steps.length === 0 ? 1 : 2,
+        llm_output_type_id: 2,
+        llm_model_id: 1,
+        humor_flavor_step_type_id: steps.length === 0 ? 1 : 3,
+        llm_temperature: 0.7,
+        ...payload
       })
     }
     setShowForm(false)

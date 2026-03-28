@@ -156,6 +156,11 @@ export default function NewFlavorPage() {
       description: s.label || null,
       llm_system_prompt: s.systemPrompt || null,
       llm_user_prompt: s.userPrompt,
+      llm_input_type_id: i === 0 ? 1 : 2,
+      llm_output_type_id: 2,
+      llm_model_id: 1,
+      humor_flavor_step_type_id: i === 0 ? 1 : 3,
+      llm_temperature: 0.7,
     }))
 
     const { error: stepsErr } = await supabase.from('humor_flavor_steps').insert(stepsToInsert)
