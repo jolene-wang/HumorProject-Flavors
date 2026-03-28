@@ -12,15 +12,25 @@ type DraftStep = {
   userPrompt: string
 }
 
-const EXAMPLES = [
-  { label: 'Describe the image', systemPrompt: 'You are a precise visual analyst.', userPrompt: 'Describe everything you see in this image in detail. Include people, objects, setting, mood, and any text visible.' },
-  { label: 'Find the funny angle', systemPrompt: 'You are a sharp, witty comedian.', userPrompt: 'Based on this description:\n${previousOutput}\n\nWhat is the funniest, most absurd, or most relatable thing about this scene? Give 3 comedic angles.' },
-  { label: 'Write captions', systemPrompt: 'You are a viral social media caption writer.', userPrompt: 'Using these comedic angles:\n${previousOutput}\n\nWrite 5 short, punchy captions (under 60 chars each). No numbering. Raw text only.' },
+const EXAMPLES: Omit<DraftStep, 'id'>[] = [
+  {
+    label: 'Describe the image',
+    systemPrompt: 'You are a precise visual analyst.',
+    userPrompt: 'Describe everything you see in this image in detail. Include people, objects, setting, expressions, and mood.',
+  },
+  {
+    label: 'Find the funny angle',
+    systemPrompt: 'You are a sharp, witty comedian.',
+    userPrompt: 'Based on this image description:\n${step1Output}\n\nWhat is the funniest, most absurd, or most relatable thing about this scene? Give 3 comedic angles.',
+  },
+  {
+    label: 'Write captions',
+    systemPrompt: 'You are a viral social media caption writer.',
+    userPrompt: 'Using these comedic angles:\n${step2Output}\n\nWrite 5 short, punchy captions under 60 characters each. No numbering. Raw text only.',
+  },
 ]
 
-function StepCard({
-  step, index, total, onChange, onDelete, onMoveUp, onMoveDown
-}: {
+function StepCard({ step, index, total, onChange, onDelete, onMoveUp, onMoveDown }: {
   step: DraftStep
   index: number
   total: number
@@ -30,6 +40,7 @@ function StepCard({
   onMoveDown: (index: number) => void
 }) {
   const [expanded, setExpanded] = useState(true)
+  const prevVar = index > 0 ? `\${step${index}Output}` : null
 
   return (
     <div className="relative flex gap-4">
@@ -40,7 +51,6 @@ function StepCard({
         {index + 1}
       </div>
       <div className="flex-1 mb-4 border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-900 overflow-hidden">
-        {/* Step header */}
         <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
           <input
             value={step.label}
@@ -58,6 +68,11 @@ function StepCard({
 
         {expanded && (
           <div className="p-4 space-y-3">
+            {prevVar && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-3 py-2 rounded-lg">
+                💡 Reference the previous step's output with <code className="font-mono font-bold">{prevVar}</code>
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 System Prompt <span className="font-normal normal-case text-gray-400">(sets the AI's role)</span>
@@ -73,14 +88,15 @@ function StepCard({
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 User Prompt <span className="text-red-400">*</span>
-                <span className="font-normal normal-case text-gray-400 ml-1">— use <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'${previousOutput}'}</code> to chain steps</span>
               </label>
               <textarea
                 value={step.userPrompt}
                 onChange={e => onChange(step.id, 'userPrompt', e.target.value)}
                 rows={4}
                 required
-                placeholder={index === 0 ? "Describe everything you see in this image…" : "Based on the previous output:\n${previousOutput}\n\nNow…"}
+                placeholder={index === 0
+                  ? 'Describe everything you see in this image in detail…'
+                  : `Based on the previous step:\n\${step${index}Output}\n\nNow…`}
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
               />
             </div>
@@ -94,22 +110,21 @@ function StepCard({
 export default function NewFlavorPage() {
   const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
-  const [steps, setSteps] = useState<DraftStep[]>([
-    { id: crypto.randomUUID(), label: 'Describe the image', systemPrompt: 'You are a precise visual analyst.', userPrompt: 'Describe everything you see in this image in detail. Include people, objects, setting, mood, and any text visible.' },
-    { id: crypto.randomUUID(), label: 'Find the funny angle', systemPrompt: 'You are a sharp, witty comedian.', userPrompt: 'Based on this description:\n${previousOutput}\n\nWhat is the funniest, most absurd, or most relatable thing about this scene? Give 3 comedic angles.' },
-    { id: crypto.randomUUID(), label: 'Write captions', systemPrompt: 'You are a viral social media caption writer.', userPrompt: 'Using these comedic angles:\n${previousOutput}\n\nWrite 5 short, punchy captions (under 60 chars each). No numbering. Raw text only.' },
-  ])
+  const [steps, setSteps] = useState<DraftStep[]>(
+    EXAMPLES.map(e => ({ id: crypto.randomUUID(), ...e }))
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
   function addStep() {
+    const n = steps.length
     setSteps(prev => [...prev, {
       id: crypto.randomUUID(),
       label: '',
       systemPrompt: '',
-      userPrompt: prev.length > 0 ? 'Based on the previous output:\n${previousOutput}\n\n' : ''
+      userPrompt: n > 0 ? `Based on the previous step:\n\${step${n}Output}\n\n` : '',
     }])
   }
 
@@ -131,7 +146,7 @@ export default function NewFlavorPage() {
     setSteps(prev => { const a = [...prev]; [a[index], a[index + 1]] = [a[index + 1], a[index]]; return a })
   }
 
-  function useTemplate() {
+  function resetToExample() {
     setSteps(EXAMPLES.map(e => ({ id: crypto.randomUUID(), ...e })))
   }
 
@@ -179,7 +194,6 @@ export default function NewFlavorPage() {
         </Link>
 
         <form onSubmit={handleSubmit}>
-          {/* Flavor info */}
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-6">
             <h1 className="text-2xl font-bold mb-1">New Humor Flavor</h1>
             <p className="text-sm text-gray-500 mb-5">
@@ -192,7 +206,7 @@ export default function NewFlavorPage() {
                   value={slug}
                   onChange={e => setSlug(e.target.value)}
                   required
-                  placeholder="e.g. Dry Wit, Gen Z Chaos, Absurdist"
+                  placeholder="e.g. Dry Wit, Gen Z Chaos, Friends Humor"
                   className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
@@ -208,24 +222,25 @@ export default function NewFlavorPage() {
             </div>
           </div>
 
-          {/* Steps section */}
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold">Prompt Chain Steps</h2>
-              <p className="text-sm text-gray-500 mt-0.5">Each step passes its output to the next via <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs">{'${previousOutput}'}</code></p>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Use <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs">{'${step1Output}'}</code>,{' '}
+                <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded text-xs">{'${step2Output}'}</code>, etc. to chain steps
+              </p>
             </div>
             <button
               type="button"
-              onClick={useTemplate}
+              onClick={resetToExample}
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               Reset to example
             </button>
           </div>
 
-          {/* How it works hint */}
           <div className="mb-5 p-3 rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 text-xs text-blue-700 dark:text-blue-300">
-            💡 <strong>How it works:</strong> Step 1 takes the image → Step 2 gets Step 1's output → Step 3 gets Step 2's output → final output becomes captions.
+            💡 <strong>How it works:</strong> Step 1 sees the image → Step 2 uses <code className="font-mono">{'${step1Output}'}</code> → Step 3 uses <code className="font-mono">{'${step2Output}'}</code> → final step output becomes captions.
           </div>
 
           <div className="relative">
@@ -243,7 +258,6 @@ export default function NewFlavorPage() {
             ))}
           </div>
 
-          {/* Add step */}
           <button
             type="button"
             onClick={addStep}

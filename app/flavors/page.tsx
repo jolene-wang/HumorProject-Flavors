@@ -36,15 +36,16 @@ export default async function FlavorsPage() {
   const { data: stepCounts } = await supabase
     .from('humor_flavor_steps')
     .select('humor_flavor_id')
+    .limit(10000)
 
   const countMap: Record<string, number> = {}
   stepCounts?.forEach(s => {
     countMap[s.humor_flavor_id] = (countMap[s.humor_flavor_id] || 0) + 1
   })
 
-  // Only show flavors that have at least one step (API requires steps)
-  const flavorsWithSteps = flavors?.filter(f => (countMap[f.id] ?? 0) > 0)
-  const flavorsWithoutSteps = flavors?.filter(f => (countMap[f.id] ?? 0) === 0)
+  // Show all flavors — steps may exist but not be visible due to RLS
+  const flavorsWithSteps = flavors
+  const flavorsWithoutSteps: typeof flavors = []
 
   return (
     <>

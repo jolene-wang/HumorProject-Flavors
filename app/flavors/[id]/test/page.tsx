@@ -252,9 +252,12 @@ export default function TestFlavorPage() {
                   </li>
                 ))}
               </ul>
-              <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800">
+              <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
                 <Link href={`/flavors/${id}/captions`} className="text-xs text-purple-600 dark:text-purple-400 hover:underline">
                   View all captions for this flavor →
+                </Link>
+                <Link href="/flavors" className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium transition-colors">
+                  ← Back to Home
                 </Link>
               </div>
             </div>
