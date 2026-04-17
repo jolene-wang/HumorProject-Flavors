@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import Navbar from '@/components/Navbar'
 import DeleteFlavorButton from './DeleteFlavorButton'
+import DuplicateFlavorButton from './DuplicateFlavorButton'
 
 export default async function FlavorsPage() {
   const supabase = await createClient()
@@ -99,6 +100,7 @@ export default async function FlavorsPage() {
                   <Link href={`/flavors/${f.id}/test`} className="px-3 py-1.5 text-sm rounded-lg bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400 hover:bg-green-200 font-medium transition-colors">🧪 Test</Link>
                   <Link href={`/flavors/${f.id}/captions`} className="px-3 py-1.5 text-sm rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 hover:bg-purple-200 font-medium transition-colors">💬 Captions</Link>
                   <Link href={`/flavors/${f.id}`} className="px-3 py-1.5 text-sm rounded-lg bg-yellow-100 dark:bg-yellow-950 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 font-medium transition-colors">✏️ Edit</Link>
+                  <DuplicateFlavorButton id={f.id} name={f.slug} />
                   <DeleteFlavorButton id={f.id} name={f.slug} />
                 </div>
               </div>
